@@ -1,5 +1,6 @@
+
 import React, { useState, useRef, useEffect } from 'react';
-import { Sparkles, Wand2, Eraser, AlignLeft } from 'lucide-react';
+import { Sparkles, Wand2, Eraser, AlignLeft, Settings, X, Key, Save } from 'lucide-react';
 import { generateCardContent } from './services/geminiService';
 import { CardContent, GenerationState } from './types';
 import CardGrid from './components/CardGrid';
@@ -13,8 +14,25 @@ const App: React.FC = () => {
     error: null,
     hasResult: false,
   });
+  
+  // API Key Management
+  const [apiKey, setApiKey] = useState<string>('');
+  const [showSettings, setShowSettings] = useState<boolean>(false);
 
   const resultsRef = useRef<HTMLDivElement>(null);
+
+  // Load API Key from local storage on mount
+  useEffect(() => {
+    const storedKey = localStorage.getItem('gemini_api_key');
+    if (storedKey) {
+      setApiKey(storedKey);
+    }
+  }, []);
+
+  const handleSaveApiKey = () => {
+    localStorage.setItem('gemini_api_key', apiKey);
+    setShowSettings(false);
+  };
 
   const handleGenerate = async () => {
     if (!inputText.trim()) return;
@@ -22,15 +40,21 @@ const App: React.FC = () => {
     setState({ isLoading: true, error: null, hasResult: false });
     
     try {
-      const result = await generateCardContent(inputText);
+      // Pass the user's API key if it exists
+      const result = await generateCardContent(inputText, apiKey);
       setCardContent(result);
       setState({ isLoading: false, error: null, hasResult: true });
-    } catch (e) {
+    } catch (e: any) {
+      const errorMessage = e?.message || "生成失败。请检查您的 API 密钥或重试。";
       setState({ 
         isLoading: false, 
-        error: "生成失败。请检查您的 API 密钥或重试。", 
+        error: errorMessage, 
         hasResult: false 
       });
+      // If error is related to key, auto open settings
+      if (errorMessage.includes("API Key")) {
+        setShowSettings(true);
+      }
     }
   };
 
@@ -52,11 +76,71 @@ const App: React.FC = () => {
   }, [state.hasResult]);
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-indigo-100 selection:text-indigo-900">
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-indigo-100 selection:text-indigo-900 relative">
       
+      {/* Settings Modal */}
+      {showSettings && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 relative animate-in zoom-in-95 duration-200">
+            <button 
+              onClick={() => setShowSettings(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors"
+            >
+              <X size={20} />
+            </button>
+            
+            <div className="flex items-center gap-2 mb-6 text-indigo-600">
+              <Settings size={24} />
+              <h2 className="text-xl font-bold">API 设置</h2>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
+                  <Key size={16} />
+                  Gemini API Key
+                </label>
+                <input 
+                  type="password" 
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  placeholder="sk-..."
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 bg-slate-50 text-slate-800"
+                />
+                <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+                  您的 Key 仅存储在本地浏览器中，用于调用 Google Gemini 接口。
+                  <br/>
+                  如果没有 Key，<a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline">点击这里免费获取</a>。
+                </p>
+              </div>
+              
+              <button 
+                onClick={handleSaveApiKey}
+                className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-all flex items-center justify-center gap-2"
+              >
+                <Save size={18} />
+                保存设置
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Hero Section */}
       <header className="relative bg-white border-b border-slate-200 pt-16 pb-12 overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:16px_16px] opacity-50"></div>
+        
+        {/* Settings Button */}
+        <div className="absolute top-4 right-4 z-20">
+          <button 
+            onClick={() => setShowSettings(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-sm border border-slate-200 rounded-full text-sm font-medium text-slate-600 hover:text-indigo-600 hover:border-indigo-200 transition-all shadow-sm"
+          >
+            <Settings size={16} />
+            <span className="hidden sm:inline">{apiKey ? 'API 已配置' : '配置 API'}</span>
+          </button>
+        </div>
+
         <div className="container mx-auto px-4 text-center relative z-10">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 text-indigo-600 text-xs font-bold uppercase tracking-wider mb-6 border border-indigo-100">
             <Sparkles size={14} />
@@ -126,8 +210,13 @@ const App: React.FC = () => {
 
         {/* Error Message */}
         {state.error && (
-          <div className="max-w-3xl mx-auto mt-6 p-4 bg-red-50 border border-red-100 text-red-600 rounded-lg text-center text-sm">
-            {state.error}
+          <div className="max-w-3xl mx-auto mt-6 p-4 bg-red-50 border border-red-100 text-red-600 rounded-lg text-center text-sm flex flex-col items-center gap-2">
+            <span>{state.error}</span>
+            {state.error.includes("Key") && (
+              <button onClick={() => setShowSettings(true)} className="text-indigo-600 hover:underline font-bold">
+                点击此处配置 API Key
+              </button>
+            )}
           </div>
         )}
       </main>

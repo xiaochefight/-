@@ -2,10 +2,12 @@
 import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { CardContent } from "../types";
 
-export const generateCardContent = async (inputText: string): Promise<CardContent> => {
-  const apiKey = process.env.API_KEY;
+export const generateCardContent = async (inputText: string, customApiKey?: string): Promise<CardContent> => {
+  // Prioritize custom key from UI, then fallback to environment variable
+  const apiKey = customApiKey || process.env.API_KEY;
+  
   if (!apiKey) {
-    throw new Error("API Key is missing");
+    throw new Error("未配置 API Key。请在右上角设置中输入您的 Gemini API Key，或检查环境变量配置。");
   }
 
   const ai = new GoogleGenAI({ apiKey });
@@ -43,7 +45,7 @@ export const generateCardContent = async (inputText: string): Promise<CardConten
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-pro-preview",
+      model: "gemini-2.5-flash",
       contents: `你是专业的社交媒体内容专家（小红书/公众号）。
       你的任务是将用户输入的文本转化为一套“图文笔记”内容。
       
